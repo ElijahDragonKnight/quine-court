@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quine Court - Strategy Arcade</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-color: #1e293b;
+            --text-color: #f8fafc;
+            --accent-blue: #38bdf8;
+            --accent-red: #f43f5e;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #menu-container, #game-container {
+            background-color: var(--panel-color);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            transition: all 0.3s ease;
+        }
+
+        #game-container {
+            display: none;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, filter 0.2s;
+        }
+
+        .btn:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #475569, #64748b);
+        }
+
+        #scoreboard {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .player-blue { color: var(--accent-blue); }
+        .player-red { color: var(--accent-red); }
+
+        #status-message {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            min-height: 1.5rem;
+            font-weight: 500;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 0 auto 1.5rem auto;
+            max-width: 300px;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            background-color: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .cell:hover {
+            background-color: #1e293b;
+            border-color: #475569;
+        }
+
+        .cell:active {
+            transform: scale(0.95);
+        }
+
+        .cell.taken-blue {
+            color: var(--accent-blue);
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        .cell.taken-red {
+            color: var(--accent-red);
+            border-color: var(--accent-red);
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- MAIN MENU LAYER -->
+    <div id="menu-container">
+        <h1>Quine Court</h1>
+        <p class="subtitle">Select your gameplay terminal mode</p>
+        <button class="btn" onclick="startGame('single')">Single Player (vs Bot)</button>
+        <button class="btn btn-secondary" onclick="startGame('multi')">Multiplayer (Local)</button>
+    </div>
+
+    <!-- GAMEPLAY TERMINAL LAYER -->
+    <div id="game-container">
+        <div id="scoreboard">
+            <span class="player-blue">Player 1 (X)</span>
+            <span id="mode-label" style="color: #64748b;">vs</span>
+            <span id="player2-label" class="player-red">Bot (O)</span>
+        </div>
+        
+        <div id="status-message">Your Turn</div>
+
+        <div id="grid">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+
+        <button class="btn btn-secondary" onclick="backToMenu()">Main Menu</button>
+    </div>
+
+    <script>
+        let gameMode = 'single'; // 'single' or 'multi'
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let currentPlayer = 'X'; // X is Blue, O is Red
+        let isGameActive = true;
+
+        const menuContainer = document.getElementById('menu-container');
+        const gameContainer = document.getElementById('game-container');
+        const player2Label = document.getElementById('player2-label');
+        const statusMessage = document.getElementById('status-message');
+        const cells = document.querySelectorAll('.cell');
+
+        const winningConditions = [, [3, 4, 5], [6, 7, 8], // Rows, [1, 4, 7], [2, 5, 8], // Columns, [2, 4, 6]             // Diagonals
+        ];
+
+        function startGame(mode) {
+            gameMode = mode;
+            menuContainer.style.display = 'none';
+            gameContainer.style.display = 'block';
+            
+            if (gameMode === 'single') {
+                player2Label.textContent = 'Smart Bot (O)';
+            } else {
+                player2Label.textContent = 'Player 2 (O)';
+            }
+            
+            resetGame();
+        }
+
+        function backToMenu() {
+            gameContainer.style.display = 'none';
+            menuContainer.style.display = 'block';
+        }
+
+        function resetGame() {
+            board = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'X';
+            isGameActive = true;
+            statusMessage.textContent = "Player 1's Turn";
+            statusMessage.style.color = 'var(--accent-blue)';
+            
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.className = 'cell';
+            });
+        }
+
+        function handleCellClick(e) {
+            const clickedCell = e.target;
+            const clickedCellIndex = parseInt(clickedCell.getAttribute('data-index'));
+
+            if (board[clickedCellIndex] !== '' || !isGameActive) return;
+
+            // Block human input if it is the Bot's turn processing phase
+            if (gameMode === 'single' && currentPlayer === 'O') return;
+
+            makeMove(clickedCellIndex, currentPlayer);
+        }
+
+        function makeMove(index, player) {
+            board[index] = player;
+            const cell = cells[index];
+            cell.textContent = player;
+            cell.classList.add(player === 'X' ? 'taken-blue' : 'taken-red');
+
+            checkResult();
+        }
+
+        function checkResult() {
+            let roundWon = false;
+            for (let i = 0; i < winningConditions.length; i++) {
+                const winCondition = winningConditions[i];
+                let a = board[winCondition[0]];
+                let b = board[winCondition[1]];
+                let c = board[winCondition[2]];
+                if (a === '' || b === '' || c === '') continue;
+                if (a === b && b === c) {
+                    roundWon = true;
+                    break;
+                }
+            }
+
+            if (roundWon) {
+                if (currentPlayer === 'X') {
+                    statusMessage.textContent = "Player 1 Wins!";
+                    statusMessage.style.color = 'var(--accent-blue)';
+                } else {
+                    statusMessage.textContent = gameMode === 'single' ? "Bot Wins!" : "Player 2 Wins!";
+                    statusMessage.style.color = 'var(--accent-red)';
+                }
+                isGameActive = false;
+                return;
+            }
+
+            let roundDraw = !board.includes('');
+            if (roundDraw) {
+                statusMessage.textContent = "Match Result: Draw!";
+                statusMessage.style.color = '#94a3b8';
+                isGameActive = false;
+                return;
+            }
+
+            // Switch Turns
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            
+            if (currentPlayer === 'X') {
+                statusMessage.textContent = "Player 1's Turn";
+                statusMessage.style.color = 'var(--accent-blue)';
+            } else {
+                if (gameMode === 'single') {
+                    statusMessage.textContent = "Bot is calculating...";
+                    statusMessage.style.color = 'var(--accent-red)';
+                    setTimeout(botMove, 600); // Visual delay for realism
+                } else {
+                    statusMessage.textContent = "Player 2's Turn";
+                    statusMessage.style.color = 'var(--accent-red)';
+                }
+            }
+        }
+
+        // Minimax AI Bot Implementation
+        function botMove() {
+            if (!isGameActive) return;
+            const bestMoveIndex = findBestMove(board);
+            makeMove(bestMoveIndex, 'O');
+        }
+
